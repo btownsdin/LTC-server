@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAN Timecode Monitor</title>
+    <style>
+        body {
+            background-color: #0c0c0e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        /* Master container wrapping the title and digits vertically */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Production Title Bar Layout */
+        #title-bar {
+            font-size: 2.8vw;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 5vh; /* Spaces title safely above digits */
+            transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+        
+        /* Flex row for the numeric readouts */
+        #timecode {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        
+        .time-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .digits, .separator {
+            font-size: 13vw; 
+            font-weight: 700;
+            font-variant-numeric: tabular-nums; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1;
+            transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+        
+        /* Small designator labels beneath digit pairs */
+        .label {
+            font-size: 1.8vw;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 1.5vh;
+            opacity: 0.3;
+            color: #ffffff; /* Stays a clean, subtle white anchor */
+        }
+        
+        /* ACTIVE STATE COLORING (Applies to title, numbers, and colons) */
+        .running #title-bar, 
+        .running .digits, 
+        .running .separator {
+            color: #10b981; 
+            text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+        }
+        
+        /* PAUSED STATE COLORING (Applies to title, numbers, and colons) */
+        .paused #title-bar, 
+        .paused .digits, 
+        .paused .separator {
+            color: #ef4444; 
+            text-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+        }
+        
+        /* Countdown progress bar */
+        #progress-wrap {
+            width: 62vw;
+            max-width: 1100px;
+            margin-top: 5vh;
+            opacity: 0;
+            transition: opacity 0.35s ease;
+        }
+        #progress-track {
+            width: 100%;
+            height: 1.1vh;
+            min-height: 9px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        #progress-fill {
+            width: 0%;
+            height: 100%;
+            border-radius: 999px;
+            background: #4b5563;
+            transition: width 0.25s linear, background 0.15s ease, box-shadow 0.15s ease;
+        }
+        #progress-caption {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1.6vh;
+            font-size: 1.4vw;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-variant-numeric: tabular-nums;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.45;
+            color: #ffffff;
+        }
+        .running #progress-fill {
+            background: #10b981;
+            box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
+        }
+        .paused #progress-fill {
+            background: #ef4444;
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.30);
+        }
+
+        #status {
+            position: absolute;
+            bottom: 24px;
+            font-size: 1.2vw;
+            color: #4b5563;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-variant-numeric: tabular-nums;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container" class="paused">
+        <div id="title-bar">SANCTUARY TRIA CH C COUNTDOWN</div>
+        
+        <div id="timecode">
+            <div class="time-column">
+                <span id="hours" class="digits">00</span>
+                <span class="label">H</span>
+            </div>
+            <span class="separator">:</span>
+            <div class="time-column">
+                <span id="minutes" class="digits">00</span>
+                <span class="label">M</span>
+            </div>
+            <span class="separator">:</span>
+            <div class="time-column">
+                <span id="seconds" class="digits">00</span>
+                <span class="label">S</span>
+            </div>
+        </div>
+
+        <div id="progress-wrap">
+            <div id="progress-track"><div id="progress-fill"></div></div>
+            <div id="progress-caption">
+                <span id="pct">0%</span>
+                <span id="remain">--:--</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="status">Connecting to Host Server...</div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const statusDisplay = document.getElementById('status');
+        
+        const hoursDisplay = document.getElementById('hours');
+        const minutesDisplay = document.getElementById('minutes');
+        const secondsDisplay = document.getElementById('seconds');
+
+        const progressWrap = document.getElementById('progress-wrap');
+        const progressFill = document.getElementById('progress-fill');
+        const pctEl = document.getElementById('pct');
+        const remainEl = document.getElementById('remain');
+        
+        let pieces = new Array(8).fill(0);
+        let currentFPS = '30';
+        
+        let sequenceMask = 0;
+        let lastQuarterFrameTime = 0;
+        let mtcTimeout = null;
+        
+        let lastDispH = -1, lastDispM = -1, lastDispS = -1;
+        let lastMovementTime = 0; 
+        const LOOSE_TOLERANCE_MS = 2000; // 2-second tolerance threshold
+
+        // --- Countdown -> progress bar state ---
+        let totalSeconds = null;   // locked total run time (the countdown's start value)
+        let peakSeconds = null;    // highest value seen while "arming"
+        let runArmed = false;      // true once the total has been confirmed & locked
+        let lastSeconds = null;    // previous reading, for jump detection
+        const JUMP = 2;            // an upward jump this many seconds => new countdown loaded
+
+        // Open real-time server network socket
+        const socket = new WebSocket(`ws://${window.location.host}`);
+
+        socket.onopen = () => {
+            statusDisplay.textContent = "Offline | Connected to Server Sync";
+        };
+
+        socket.onclose = () => {
+            statusDisplay.textContent = "Error: Lost Host Server Uplink";
+            appContainer.className = 'paused';
+            clearTimeout(mtcTimeout);
+        };
+
+        socket.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.bytes) {
+                const actualBytes = Array.isArray(msg.bytes) ? msg.bytes : msg.bytes.data;
+                if (actualBytes) {
+                    handleMIDIMessage(actualBytes);
+                }
+            }
+        };
+
+        function handleMIDIMessage(data) {
+            if (!data || data.length === 0) return;
+
+            // 1. Process MTC Quarter Frame Messages
+            if (data[0] === 0xF1 && data.length >= 2) {
+                const value = data[1];
+                const pieceIndex = (value >> 4) & 0x07;
+                const nibble = value & 0x0F;
+                
+                pieces[pieceIndex] = nibble;
+                sequenceMask |= (1 << pieceIndex);
+                lastQuarterFrameTime = Date.now(); 
+
+                if (sequenceMask === 0xFF) {
+                    const frames = pieces[0] | (pieces[1] << 4);
+                    const seconds = pieces[2] | (pieces[3] << 4);
+                    const minutes = pieces[4] | (pieces[5] << 4);
+                    const hours = pieces[6] | ((pieces[7] & 0x01) << 4);
+                    const rateType = (pieces[7] >> 1) & 0x03;
+
+                    const rates = ['24', '25', '29.97d', '30'];
+                    currentFPS = rates[rateType] || '30';
+
+                    updateDisplay(hours, minutes, seconds);
+                    sequenceMask = 0; 
+                }
+            }
+            
+            // 2. Process MTC Full Frame Messages
+            else if (data[0] === 0xF0 && data[1] === 0x7F && data[3] === 0x01 && data[4] === 0x01 && data.length >= 10) {
+                if (Date.now() - lastQuarterFrameTime > 200) {
+                    const hours = data[5] & 0x1F;
+                    const minutes = data[6];
+                    const seconds = data[7];
+
+                    const rateType = (data[5] >> 5) & 0x03;
+                    const rates = ['24', '25', '29.97d', '30'];
+                    currentFPS = rates[rateType] || '30';
+
+                    updateDisplay(hours, minutes, seconds);
+                }
+            }
+        }
+
+        function updateDisplay(h, m, s) {
+            const now = Date.now();
+
+            // Evaluate if seconds, minutes, or hours are physically progressing
+            const timeDigitsChanged = (h !== lastDispH || m !== lastDispM || s !== lastDispS);
+
+            if (timeDigitsChanged || lastDispH === -1) {
+                lastMovementTime = now; 
+            }
+
+            // Verify active status against the expanded 2-second flywheel filter window
+            const isPlaybackActive = (now - lastMovementTime < LOOSE_TOLERANCE_MS);
+
+            // Dynamic color state switching applied to the master app wrapper
+            if (isPlaybackActive) {
+                if (appContainer.className !== 'running') appContainer.className = 'running';
+                statusDisplay.textContent = `Online | ${currentFPS} FPS`;
+            } else {
+                if (appContainer.className !== 'paused') appContainer.className = 'paused';
+                statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
+            }
+
+            lastDispH = h;
+            lastDispM = m;
+            lastDispS = s;
+
+            // Render digits cleanly into separated label columns
+            const pad = (num) => String(num).padStart(2, '0');
+            hoursDisplay.textContent = pad(h);
+            minutesDisplay.textContent = pad(m);
+            secondsDisplay.textContent = pad(s);
+
+            // Drive the countdown progress bar from the decoded time
+            updateProgress(h * 3600 + m * 60 + s);
+
+            // Watchdog fallback counting down to physical connection drops
+            clearTimeout(mtcTimeout);
+            mtcTimeout = setTimeout(() => {
+                appContainer.className = 'paused';
+                statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
+            }, LOOSE_TOLERANCE_MS);
+        }
+
+        // Format a seconds count as H:MM:SS (or MM:SS when under an hour)
+        function fmtClock(sec) {
+            sec = Math.max(0, Math.round(sec));
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            const p = (n) => String(n).padStart(2, '0');
+            return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+        }
+
+        // Countdown logic:
+        //   1. Capture the first value once time starts running (the peak candidate).
+        //   2. If a higher value shows up before it settles, raise the peak to that.
+        //   3. The first time the value DROPS below the peak, that confirms the peak
+        //      was the top of the countdown -> lock it in as the total run time.
+        //   4. From then on, progress = (total - remaining) / total.
+        // An upward jump (> JUMP seconds) is treated as a new countdown being loaded.
+        // Click anywhere or press "R" to force a re-capture.
+        function updateProgress(current) {
+            // A jump upward means a new/restarted countdown: re-arm.
+            if (lastSeconds !== null && current > lastSeconds + JUMP) {
+                peakSeconds = null;
+                totalSeconds = null;
+                runArmed = false;
+            }
+            lastSeconds = current;
+
+            if (!runArmed) {
+                if (peakSeconds === null || current > peakSeconds) {
+                    peakSeconds = current;         // capture first packet / raise the peak
+                } else if (current < peakSeconds) {
+                    totalSeconds = peakSeconds;     // first decrease confirms peak = total
+                    runArmed = true;
+                }
+            }
+
+            if (runArmed && totalSeconds > 0) {
+                const remaining = Math.max(0, Math.min(current, totalSeconds));
+                const frac = (totalSeconds - remaining) / totalSeconds;
+                progressFill.style.width = (frac * 100).toFixed(2) + '%';
+                pctEl.textContent = Math.round(frac * 100) + '%';
+                remainEl.textContent = '-' + fmtClock(remaining);
+                progressWrap.style.opacity = '1';
+            } else {
+                progressWrap.style.opacity = '0';   // hidden until a countdown is locked
+            }
+        }
+
+        // Manual re-capture (e.g. after loading a different countdown)
+        function resetProgress() {
+            peakSeconds = null;
+            totalSeconds = null;
+            runArmed = false;
+            lastSeconds = null;
+            progressWrap.style.opacity = '0';
+            progressFill.style.width = '0%';
+            pctEl.textContent = '0%';
+            remainEl.textContent = '--:--';
+        }
+        document.body.addEventListener('click', resetProgress);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' || e.key === 'R') resetProgress();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "timecode-server",
+  "version": "3.0.0",
+  "description": "Network MTC timecode monitor: receives MTC over rtpmidid (RTP-MIDI/AppleMIDI) from a Mac converting LTC, and streams a countdown to browsers over WebSocket.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "midi": "^2.0.0",
+    "ws": "^8.21.0"
+  }
+}

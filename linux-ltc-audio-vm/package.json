@@ -1,0 +1,13 @@
+{
+  "name": "timecode-server-ltc-audio",
+  "version": "2.0.0",
+  "description": "LAN LTC/SMPTE timecode monitor: decodes Linear Timecode from a USB audio interface and streams it to browsers over WebSocket.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "libltc-wrapper": "^1.1.2",
+    "ws": "^8.21.0"
+  }
+}

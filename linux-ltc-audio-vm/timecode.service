@@ -1,0 +1,26 @@
+[Unit]
+Description=LAN LTC/SMPTE Timecode Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/timecode
+ExecStart=/usr/bin/node /opt/timecode/server.js
+Restart=always
+RestartSec=3
+
+# --- Edit these to match your rig (run `arecord -l` inside the container) ---
+# AUDIO_DEV:   Scarlett usually enumerates as CARD=USB; confirm the id in brackets.
+# CHANNELS:    18i20 exposes 18 capture channels at 48k (confirm: arecord -D plughw:CARD=USB --dump-hw-params).
+# LTC_CHANNEL: run  node /opt/timecode/find-ltc-channel.js  to detect this automatically.
+# FPS:         your source rate. Drop-frame is auto-detected from the signal.
+Environment=PORT=8085
+Environment=AUDIO_DEV=plughw:CARD=USB,DEV=0
+Environment=CHANNELS=18
+Environment=LTC_CHANNEL=0
+Environment=FPS=29.97
+Environment=SAMPLE_RATE=48000
+
+[Install]
+WantedBy=multi-user.target

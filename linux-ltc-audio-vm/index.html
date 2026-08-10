@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAN Timecode Monitor</title>
+    <style>
+        body {
+            background-color: #0c0c0e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        /* Master container wrapping the title and digits vertically */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Production Title Bar Layout */
+        #title-bar {
+            font-size: 2.8vw;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 5vh; /* Spaces title safely above digits */
+            transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+        
+        /* Flex row for the numeric readouts */
+        #timecode {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        
+        .time-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .digits, .separator {
+            font-size: 13vw; 
+            font-weight: 700;
+            font-variant-numeric: tabular-nums; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1;
+            transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+        
+        /* Small designator labels beneath digit pairs */
+        .label {
+            font-size: 1.8vw;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 1.5vh;
+            opacity: 0.3;
+            color: #ffffff; /* Stays a clean, subtle white anchor */
+        }
+        
+        /* ACTIVE STATE COLORING (Applies to title, numbers, and colons) */
+        .running #title-bar, 
+        .running .digits, 
+        .running .separator {
+            color: #10b981; 
+            text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+        }
+        
+        /* PAUSED STATE COLORING (Applies to title, numbers, and colons) */
+        .paused #title-bar, 
+        .paused .digits, 
+        .paused .separator {
+            color: #ef4444; 
+            text-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+        }
+        
+        #status {
+            position: absolute;
+            bottom: 24px;
+            font-size: 1.2vw;
+            color: #4b5563;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-variant-numeric: tabular-nums;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container" class="paused">
+        <div id="title-bar">SANCTUARY TRIA CH C COUNTDOWN</div>
+        
+        <div id="timecode">
+            <div class="time-column">
+                <span id="hours" class="digits">00</span>
+                <span class="label">H</span>
+            </div>
+            <span class="separator">:</span>
+            <div class="time-column">
+                <span id="minutes" class="digits">00</span>
+                <span class="label">M</span>
+            </div>
+            <span class="separator">:</span>
+            <div class="time-column">
+                <span id="seconds" class="digits">00</span>
+                <span class="label">S</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="status">Connecting to Host Server...</div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const statusDisplay = document.getElementById('status');
+        
+        const hoursDisplay = document.getElementById('hours');
+        const minutesDisplay = document.getElementById('minutes');
+        const secondsDisplay = document.getElementById('seconds');
+        
+        let currentFPS = '30';
+        let mtcTimeout = null;
+
+        let lastDispH = -1, lastDispM = -1, lastDispS = -1;
+        let lastMovementTime = 0;
+        const LOOSE_TOLERANCE_MS = 2000; // 2-second tolerance threshold
+
+        // Open real-time server network socket
+        const socket = new WebSocket(`ws://${window.location.host}`);
+
+        socket.onopen = () => {
+            statusDisplay.textContent = "Connected | Waiting for timecode...";
+        };
+
+        socket.onclose = () => {
+            statusDisplay.textContent = "Error: Lost Host Server Uplink";
+            appContainer.className = 'paused';
+            clearTimeout(mtcTimeout);
+        };
+
+        // The server now decodes LTC and sends { tc:{h,m,s,f}, fps, drop, reverse }
+        socket.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.tc) {
+                if (msg.fps) currentFPS = msg.fps;
+                updateDisplay(msg.tc.h, msg.tc.m, msg.tc.s);
+            }
+        };
+
+        function updateDisplay(h, m, s) {
+            const now = Date.now();
+
+            // Evaluate if seconds, minutes, or hours are physically progressing
+            const timeDigitsChanged = (h !== lastDispH || m !== lastDispM || s !== lastDispS);
+
+            if (timeDigitsChanged || lastDispH === -1) {
+                lastMovementTime = now; 
+            }
+
+            // Verify active status against the expanded 2-second flywheel filter window
+            const isPlaybackActive = (now - lastMovementTime < LOOSE_TOLERANCE_MS);
+
+            // Dynamic color state switching applied to the master app wrapper
+            if (isPlaybackActive) {
+                if (appContainer.className !== 'running') appContainer.className = 'running';
+                statusDisplay.textContent = `Online | ${currentFPS} FPS`;
+            } else {
+                if (appContainer.className !== 'paused') appContainer.className = 'paused';
+                statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
+            }
+
+            lastDispH = h;
+            lastDispM = m;
+            lastDispS = s;
+
+            // Render digits cleanly into separated label columns
+            const pad = (num) => String(num).padStart(2, '0');
+            hoursDisplay.textContent = pad(h);
+            minutesDisplay.textContent = pad(m);
+            secondsDisplay.textContent = pad(s);
+
+            // Watchdog fallback counting down to physical connection drops
+            clearTimeout(mtcTimeout);
+            mtcTimeout = setTimeout(() => {
+                appContainer.className = 'paused';
+                statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
+            }, LOOSE_TOLERANCE_MS);
+        }
+    </script>
+</body>
+</html>
