@@ -12,11 +12,14 @@ Restart=always
 RestartSec=3
 
 # --- Tune these ---
-# PORT:          the port the dashboard is served on.
+# PORT:          the port the main dashboard (with progress bar) is served on.
+# MINIMAL_PORT:  the port the full-screen MM:SS-only view is served on.
+#                Defaults to PORT+1 if unset.
 # MIDI_PORT_NAME: substring to match the rtpmidid ALSA port name.
 #                 Run `aconnect -i` after the Mac connects to see the exact name,
 #                 then set it here for a precise match instead of the built-in guesses.
 Environment=PORT=8085
+Environment=MINIMAL_PORT=8086
 Environment=MIDI_PORT_NAME=
 
 [Install]

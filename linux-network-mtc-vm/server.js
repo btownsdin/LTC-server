@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 const midi = require('midi');
 
 const PORT = parseInt(process.env.PORT || '8085', 10);
+const MINIMAL_PORT = parseInt(process.env.MINIMAL_PORT || String(PORT + 1), 10);
 
 // 1. HTTP Server: serves the dashboard HTML
 const server = http.createServer((req, res) => {
@@ -23,16 +24,36 @@ const server = http.createServer((req, res) => {
     }
 });
 
-// 2. WebSocket Server: live frame streaming
+// 1b. Second HTTP server: a minimal, full-screen MM:SS-only view on its own port
+const minimalServer = http.createServer((req, res) => {
+    if (req.url === '/' || req.url === '/index.html') {
+        fs.readFile(path.join(__dirname, 'minimal.html'), (err, data) => {
+            if (err) {
+                res.writeHead(500);
+                return res.end('Error loading minimal.html');
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(data);
+        });
+    } else {
+        res.writeHead(404);
+        res.end();
+    }
+});
+
+// 2. WebSocket servers: one per HTTP server, both fed by the same broadcast()
 const wss = new WebSocket.Server({ server });
+const minimalWss = new WebSocket.Server({ server: minimalServer });
 
 function broadcast(data) {
     const payload = JSON.stringify(data);
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(payload);
-        }
-    });
+    for (const server of [wss, minimalWss]) {
+        server.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(payload);
+            }
+        });
+    }
 }
 
 // 3. Connect to the MTC source over ALSA.
@@ -105,6 +126,20 @@ server.listen(PORT, '0.0.0.0', () => {
         for (const net of nets[name]) {
             if (net.family === 'IPv4' && !net.internal) {
                 console.log(`👉 LAN Devices:  http://${net.address}:${PORT}`);
+            }
+        }
+    }
+    console.log(`==================================================\n`);
+});
+
+minimalServer.listen(MINIMAL_PORT, '0.0.0.0', () => {
+    console.log(`🖥️  Minimal MM:SS view: http://localhost:${MINIMAL_PORT}`);
+    const { networkInterfaces } = require('os');
+    const nets = networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+            if (net.family === 'IPv4' && !net.internal) {
+                console.log(`                        http://${net.address}:${MINIMAL_PORT}`);
             }
         }
     }

@@ -45,6 +45,12 @@ for names containing `Network`, `rtpmidid`, `RTP`, `Timecode`, or `MTC`),
 copy the exact port name from `aconnect -i` into `MIDI_PORT_NAME=` in
 `timecode.service` and restart.
 
+## Minimal full-screen view
+
+Same as `mac-mtc-local`: a bare, full-screen MM:SS-only page (no labels or
+status text) is served on its own port, default `8086` (`PORT+1`, or set
+`MINIMAL_PORT` in `timecode.service`). Open `http://<vm-ip>:8086`.
+
 ## Network requirements
 
 - VM's network adapter must be **bridged** (its own LAN IP, not NAT) so
@@ -62,8 +68,9 @@ identical here.
 
 ## Files
 
-- `server.js` — reads MTC from the rtpmidid-exposed ALSA port, broadcasts over WebSocket.
+- `server.js` — reads MTC from the rtpmidid-exposed ALSA port, broadcasts over WebSocket, serves both pages on separate ports.
 - `index.html` — dashboard UI, MTC parsing, and the countdown progress bar.
+- `minimal.html` — bare full-screen MM:SS view, no other text, on its own port.
 - `package.json` — dependencies (`midi`, `ws`).
 - `install-vm.sh` — installs rtpmidid + Node app + systemd services.
 - `timecode.service` — systemd unit for the Node server; depends on `rtpmidid.service`.
