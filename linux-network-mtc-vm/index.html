@@ -168,7 +168,7 @@
             <div id="progress-track"><div id="progress-fill"></div></div>
             <div id="progress-caption">
                 <span id="pct">0%</span>
-                <span id="remain">--:--</span>
+                <span id="total-time">--:--</span>
             </div>
         </div>
     </div>
@@ -186,7 +186,7 @@
         const progressWrap = document.getElementById('progress-wrap');
         const progressFill = document.getElementById('progress-fill');
         const pctEl = document.getElementById('pct');
-        const remainEl = document.getElementById('remain');
+        const totalEl = document.getElementById('total-time');
         
         let pieces = new Array(8).fill(0);
         let currentFPS = '30';
@@ -357,7 +357,7 @@
                 const frac = (totalSeconds - remaining) / totalSeconds;
                 progressFill.style.width = (frac * 100).toFixed(2) + '%';
                 pctEl.textContent = Math.round(frac * 100) + '%';
-                remainEl.textContent = '-' + fmtClock(remaining);
+                totalEl.textContent = fmtClock(totalSeconds);   // static: total run time, not remaining
                 progressWrap.style.opacity = '1';
             } else {
                 progressWrap.style.opacity = '0';   // hidden until a countdown is locked
@@ -373,7 +373,7 @@
             progressWrap.style.opacity = '0';
             progressFill.style.width = '0%';
             pctEl.textContent = '0%';
-            remainEl.textContent = '--:--';
+            totalEl.textContent = '--:--';
         }
         document.body.addEventListener('click', resetProgress);
         document.addEventListener('keydown', (e) => {
