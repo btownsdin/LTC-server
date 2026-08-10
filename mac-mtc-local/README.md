@@ -18,6 +18,18 @@ and that your DAW/QLab is sending MTC to it.
 Open `http://localhost:8085` locally, or `http://<mac-ip>:8085` from other
 devices on the LAN (the server prints both on startup).
 
+## Minimal full-screen view
+
+A second, bare page — just large MM:SS digits, no title, labels, or status
+text — fills the entire screen and is served on its own port (default
+`8086`, or `PORT+1`, or set `MINIMAL_PORT` explicitly). It shows the same
+live countdown as the main dashboard, with hours folded into the minutes
+count (e.g. 1:05:07 remaining displays as `65:07`, not `05:07`). Useful
+for a secondary display that needs to be readable from a distance with no
+distractions.
+
+Open `http://<mac-ip>:8086` (or `http://localhost:8086`) to view it.
+
 ## Progress bar behavior
 
 The countdown total is captured automatically: the first time value seen
@@ -33,6 +45,7 @@ visible (frozen, turning red) if playback pauses.
 
 ## Files
 
-- `server.js` — HTTP + WebSocket server, reads MTC via `node-midi`.
+- `server.js` — HTTP + WebSocket server, reads MTC via `node-midi`, serves both pages on separate ports.
 - `index.html` — dashboard UI, MTC parsing, and the countdown progress bar.
+- `minimal.html` — bare full-screen MM:SS view, no other text, on its own port.
 - `package.json` — dependencies (`midi`, `ws`).

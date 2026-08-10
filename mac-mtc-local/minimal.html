@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timecode</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0c0c0e;
+            user-select: none;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Sized in vmin so it fills the screen fully regardless of
+           orientation or aspect ratio, with no other text on the page. */
+        #clock {
+            font-size: 32vmin;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            color: #ef4444;
+            text-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+            transition: color 0.15s ease, text-shadow 0.15s ease;
+        }
+
+        #clock.running {
+            color: #10b981;
+            text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="clock">00:00</div>
+
+    <script>
+        const clockEl = document.getElementById('clock');
+
+        let pieces = new Array(8).fill(0);
+        let sequenceMask = 0;
+        let lastQuarterFrameTime = 0;
+        let mtcTimeout = null;
+
+        let lastDispH = -1, lastDispM = -1, lastDispS = -1;
+        let lastMovementTime = 0;
+        const LOOSE_TOLERANCE_MS = 2000; // 2-second tolerance threshold
+
+        const socket = new WebSocket(`ws://${window.location.host}`);
+
+        socket.onclose = () => {
+            clockEl.className = '';
+            clearTimeout(mtcTimeout);
+        };
+
+        socket.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.bytes) {
+                const actualBytes = Array.isArray(msg.bytes) ? msg.bytes : msg.bytes.data;
+                if (actualBytes) {
+                    handleMIDIMessage(actualBytes);
+                }
+            }
+        };
+
+        function handleMIDIMessage(data) {
+            if (!data || data.length === 0) return;
+
+            // 1. Process MTC Quarter Frame Messages
+            if (data[0] === 0xF1 && data.length >= 2) {
+                const value = data[1];
+                const pieceIndex = (value >> 4) & 0x07;
+                const nibble = value & 0x0F;
+
+                pieces[pieceIndex] = nibble;
+                sequenceMask |= (1 << pieceIndex);
+                lastQuarterFrameTime = Date.now();
+
+                if (sequenceMask === 0xFF) {
+                    const seconds = pieces[2] | (pieces[3] << 4);
+                    const minutes = pieces[4] | (pieces[5] << 4);
+                    const hours = pieces[6] | ((pieces[7] & 0x01) << 4);
+
+                    updateDisplay(hours, minutes, seconds);
+                    sequenceMask = 0;
+                }
+            }
+
+            // 2. Process MTC Full Frame Messages
+            else if (data[0] === 0xF0 && data[1] === 0x7F && data[3] === 0x01 && data[4] === 0x01 && data.length >= 10) {
+                if (Date.now() - lastQuarterFrameTime > 200) {
+                    const hours = data[5] & 0x1F;
+                    const minutes = data[6];
+                    const seconds = data[7];
+
+                    updateDisplay(hours, minutes, seconds);
+                }
+            }
+        }
+
+        function updateDisplay(h, m, s) {
+            const now = Date.now();
+
+            const timeDigitsChanged = (h !== lastDispH || m !== lastDispM || s !== lastDispS);
+            if (timeDigitsChanged || lastDispH === -1) {
+                lastMovementTime = now;
+            }
+
+            const isPlaybackActive = (now - lastMovementTime < LOOSE_TOLERANCE_MS);
+            clockEl.className = isPlaybackActive ? 'running' : '';
+
+            lastDispH = h;
+            lastDispM = m;
+            lastDispS = s;
+
+            // Minutes + seconds only: fold hours into the minutes count
+            // (e.g. 1:05:07 remaining displays as "65:07", not "05:07").
+            const totalMinutes = h * 60 + m;
+            const pad = (num) => String(num).padStart(2, '0');
+            clockEl.textContent = `${pad(totalMinutes)}:${pad(s)}`;
+
+            clearTimeout(mtcTimeout);
+            mtcTimeout = setTimeout(() => {
+                clockEl.className = '';
+            }, LOOSE_TOLERANCE_MS);
+        }
+    </script>
+</body>
+</html>
