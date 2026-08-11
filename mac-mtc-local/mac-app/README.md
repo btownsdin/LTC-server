@@ -76,6 +76,28 @@ Settings are remembered between launches.
 
 ---
 
+## Troubleshooting
+
+**No permission popup, and Start fails (ffmpeg code 234).** This is the
+microphone permission. The app now requests it on Start, so the macOS prompt
+should appear the first time — click **Allow**. If you already dismissed it, or
+you're running in dev via `npm start`:
+
+1. Open **System Settings → Privacy & Security → Microphone**.
+2. Enable the toggle for **LTC to MTC** (packaged app) or **Electron** (dev via
+   `npm start`). If it isn't listed, press Start once to make it appear.
+3. Quit and reopen the app.
+
+Code 234 is ffmpeg's "invalid argument" and almost always means the audio
+device couldn't be opened — usually the permission above, occasionally the
+wrong **Audio input** (hit ↻ Rescan and pick your USB interface) or a
+**Channels** value higher than the interface actually provides.
+
+**It runs but never shows "Locked".** The LTC signal isn't decoding. Check the
+level meter moves when timecode is playing; if it's low, raise **Input gain**.
+Confirm **LTC channel** points at the input actually carrying LTC (it's
+0-indexed), and that **Channels** matches your interface.
+
 ## How it works
 
 - **Audio capture** — bundled `ffmpeg-static` via avfoundation, raw S16LE to stdout.

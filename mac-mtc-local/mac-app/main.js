@@ -6,7 +6,7 @@
 // over IPC.
 // ============================================================================
 
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -184,10 +184,46 @@ function openMidi(matchName) {
 // ---------------------------------------------------------------------------
 // Start / stop the conversion pipeline
 // ---------------------------------------------------------------------------
-function startConversion(settings) {
+// ---------------------------------------------------------------------------
+// Microphone/audio permission (macOS). The capture runs in a child ffmpeg
+// process, which never triggers the TCC prompt on its own — the main process
+// must ask explicitly. Without this, ffmpeg exits immediately (commonly code
+// 234 = EINVAL) because it can't open the audio device.
+// ---------------------------------------------------------------------------
+async function ensureMicPermission() {
+    if (process.platform !== 'darwin' || !systemPreferences.getMediaAccessStatus) {
+        return true; // not macOS, or older Electron — nothing to gate on
+    }
+    const status = systemPreferences.getMediaAccessStatus('microphone');
+    if (status === 'granted') return true;
+
+    if (status === 'not-determined') {
+        // Shows the system prompt, attributed to this app.
+        try {
+            const ok = await systemPreferences.askForMediaAccess('microphone');
+            if (ok) return true;
+        } catch (_) { /* fall through to denied handling */ }
+    }
+
+    // denied / restricted / prompt refused — guide the user to the setting.
+    pushStatus({
+        error: 'Microphone access is required to read the LTC audio input.\n' +
+               'Enable it in System Settings → Privacy & Security → Microphone ' +
+               '(look for "LTC to MTC", or "Electron" if you launched via npm start), ' +
+               'then quit and reopen the app.',
+    });
+    try { shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'); } catch (_) {}
+    return false;
+}
+
+async function startConversion(settings) {
     stopConversion();
 
     if (!ffmpegPath) { pushStatus({ error: 'ffmpeg not bundled correctly.' }); return; }
+
+    // Gate on microphone permission before spawning ffmpeg.
+    const permitted = await ensureMicPermission();
+    if (!permitted) { pushStatus({ running: false }); return; }
 
     // MIDI is optional — the LAN dashboard still works without it.
     let midiInfo = null;
@@ -253,7 +289,18 @@ function startConversion(settings) {
         if (msg.trim()) pushStatus({ error: msg.trim() });
     });
     captureProc.on('exit', (code) => {
-        if (running) pushStatus({ error: `Capture stopped (code ${code}).` });
+        if (!running) return;
+        if (code === 234 || code === 251 || code === 1) {
+            pushStatus({ error:
+                `Audio capture failed (ffmpeg code ${code}). Likely causes:\n` +
+                `• Microphone permission not granted (System Settings → Privacy & Security → Microphone)\n` +
+                `• Wrong "Audio input" selected — click ↻ Rescan and pick your USB interface\n` +
+                `• "Channels" set higher than the device provides` });
+        } else {
+            pushStatus({ error: `Capture stopped (ffmpeg code ${code}).` });
+        }
+        running = false;
+        pushStatus({ running: false, locked: false });
     });
 
     running = true;
@@ -308,7 +355,7 @@ ipcMain.handle('refresh-devices', async () => ({
     audioInputs: await listAudioInputs(),
     midiOutputs: listMidiOutputs(),
 }));
-ipcMain.handle('start', (_e, settings) => { saveSettings(settings); startConversion(settings); return true; });
+ipcMain.handle('start', async (_e, settings) => { saveSettings(settings); await startConversion(settings); return true; });
 ipcMain.handle('stop', () => { stopConversion(); return true; });
 ipcMain.handle('save-settings', (_e, settings) => { saveSettings(settings); return true; });
 ipcMain.handle('set-gain', (_e, g) => { if (decoder) decoder.setGain(g); return true; });

@@ -5,13 +5,15 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "convert": "node ltc-to-mtc.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "libltc-wrapper": "^1.1.2",
     "midi": "^2.0.0",
     "ws": "^8.21.0"
   }
