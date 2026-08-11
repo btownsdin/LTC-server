@@ -1,0 +1,14 @@
+# Dependencies (reinstalled with `npm install`)
+node_modules/
+
+# Build output
+dist/
+build/icon.icns
+build/icon.svg
+
+# macOS
+.DS_Store
+
+# Logs / misc
+*.log
+npm-debug.log*

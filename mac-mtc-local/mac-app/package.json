@@ -1,0 +1,54 @@
+{
+  "name": "ltc-to-mtc",
+  "version": "1.0.0",
+  "description": "Convert LTC (USB audio) to MTC — a double-clickable macOS app.",
+  "main": "main.js",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test-decoder.js",
+    "dist": "electron-builder --mac",
+    "geticon": "bash make-icon.sh"
+  },
+  "dependencies": {
+    "@julusian/midi": "^3.1.10",
+    "ffmpeg-static": "^5.2.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.local.ltctomtc",
+    "productName": "LTC to MTC",
+    "files": [
+      "main.js",
+      "preload.js",
+      "ltc-decoder.js",
+      "mtc-sender.js",
+      "renderer/**",
+      "dashboard/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**",
+      "**/node_modules/@julusian/**"
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Reads LTC timecode from your audio input."
+      }
+    },
+    "dmg": {
+      "title": "LTC to MTC"
+    }
+  }
+}

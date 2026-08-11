@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LTC → MTC</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --panel-2: #23272f;
+    --line: #2e333d;
+    --text: #e7eaef;
+    --muted: #8b93a1;
+    --accent: #38d39f;
+    --accent-dim: #1f6f57;
+    --red: #e0524d;
+    --amber: #e0a44d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  .wrap { padding: 16px 18px 20px; }
+
+  /* ---- Live readout ---- */
+  .readout {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 16px 14px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .tc {
+    font: 600 40px/1 "SF Mono", ui-monospace, Menlo, monospace;
+    letter-spacing: 1px;
+    color: var(--muted);
+    transition: color .15s;
+  }
+  .tc.live { color: var(--accent); }
+  .meta {
+    display: flex; justify-content: center; gap: 14px;
+    margin-top: 10px; color: var(--muted); font-size: 12px;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:5px; vertical-align: middle; }
+  .dot.on { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot.wait { background: var(--amber); }
+
+  /* ---- Level meter ---- */
+  .meter { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 12px; }
+  .meter > i { display:block; height:100%; width:0%; background: linear-gradient(90deg,var(--accent),#7be0c0); transition: width .06s linear; }
+
+  /* ---- Settings ---- */
+  .field { margin-bottom: 12px; }
+  label { display:block; color: var(--muted); margin-bottom: 5px; font-size: 12px; }
+  select, input[type=number] {
+    width: 100%; padding: 8px 10px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    font-size: 13px; outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent-dim); }
+  .row { display: flex; gap: 10px; }
+  .row > .field { flex: 1; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  .btn {
+    width: 100%; padding: 12px; margin-top: 6px;
+    border: none; border-radius: 10px; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #08110d;
+    background: var(--accent);
+    transition: background .15s, transform .05s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.stop { background: var(--red); color: #1a0b0a; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .linkrow { display:flex; justify-content: space-between; align-items:center; margin-top: 10px; }
+  .link { color: var(--muted); font-size: 11px; cursor: pointer; text-decoration: underline dotted; }
+  .link:hover { color: var(--text); }
+
+  .banner {
+    margin-top: 12px; padding: 8px 10px; border-radius: 8px;
+    background: rgba(224,82,77,.12); border: 1px solid rgba(224,82,77,.35);
+    color: #f0a9a5; font-size: 11.5px; display: none; white-space: pre-wrap;
+  }
+  .banner.show { display: block; }
+  .banner.info { background: rgba(224,164,77,.10); border-color: rgba(224,164,77,.30); color: #e6c290; }
+
+  /* ---- Dashboard panel ---- */
+  .dash {
+    margin-top: 14px; padding: 12px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .dashhead { display:flex; justify-content:space-between; align-items:center; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .clients { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .dashrow { display:flex; gap: 8px; margin-top: 8px; }
+  .dashrow input[type=text] {
+    flex:1; padding: 7px 9px; background: var(--panel-2); color: var(--accent);
+    border: 1px solid var(--line); border-radius: 7px;
+    font: 12px "SF Mono", ui-monospace, Menlo, monospace; outline: none;
+  }
+  .mini {
+    padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer;
+    background: var(--accent-dim); color: var(--text); font-weight: 600; font-size: 12px;
+  }
+  .mini:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="readout">
+    <div id="tc" class="tc">--:--:--:--</div>
+    <div class="meta">
+      <span><span id="lockdot" class="dot"></span><span id="lockstate">Stopped</span></span>
+      <span>FPS <b id="fpsDisp">—</b></span>
+      <span>→ <b id="midiname">—</b></span>
+    </div>
+    <div class="meter"><i id="level"></i></div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="audioInput">Audio input</label>
+      <select id="audioInput"></select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="channels">Channels</label>
+      <input type="number" id="channels" min="1" max="64" />
+    </div>
+    <div class="field">
+      <label for="ltcChannel">LTC channel</label>
+      <input type="number" id="ltcChannel" min="0" max="63" />
+    </div>
+    <div class="field">
+      <label for="fps">Frame rate</label>
+      <select id="fps">
+        <option value="auto">Auto</option>
+        <option value="30">30</option>
+        <option value="29.97">29.97 DF</option>
+        <option value="25">25</option>
+        <option value="24">24</option>
+        <option value="23.976">23.976</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="midiOut">MIDI output (MTC destination)</label>
+    <select id="midiOut"></select>
+  </div>
+
+  <div class="field">
+    <label for="gain">Input gain <span id="gainval" style="color:var(--text)">1.0×</span></label>
+    <input type="range" id="gain" min="0.1" max="8" step="0.1" />
+  </div>
+
+  <button id="toggle" class="btn">Start</button>
+
+  <div class="dash">
+    <div class="dashhead">
+      <span>LAN dashboard</span>
+      <span id="clients" class="clients">0 viewers</span>
+    </div>
+    <div class="dashrow">
+      <input id="lanurl" type="text" readonly value="starting…" />
+      <button id="opendash" class="mini">Open</button>
+    </div>
+    <div class="dashrow">
+      <label for="dashPort" style="margin:0; align-self:center;">Port</label>
+      <input type="number" id="dashPort" min="1024" max="65535" style="max-width:90px;" />
+      <span class="link" id="copyurl">Copy LAN link</span>
+    </div>
+  </div>
+
+  <div class="linkrow">
+    <span id="refresh" class="link">↻ Rescan devices</span>
+    <span class="link" id="hint">Also feeds MIDI (IAC / QLab / consoles)</span>
+  </div>
+
+  <div id="banner" class="banner"></div>
+</div>
+
+<script src="renderer.js"></script>
+</body>
+</html>
