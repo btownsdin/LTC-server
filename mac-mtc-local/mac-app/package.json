@@ -1,7 +1,7 @@
 {
   "name": "ltc-to-mtc",
   "version": "1.0.0",
-  "description": "Convert LTC (USB audio) to MTC — a double-clickable macOS app.",
+  "description": "Convert LTC (USB audio) to MTC \u2014 a double-clickable macOS app.",
   "main": "main.js",
   "author": "",
   "license": "ISC",
@@ -9,7 +9,9 @@
     "start": "electron .",
     "test": "node test-decoder.js",
     "dist": "electron-builder --mac",
-    "geticon": "bash make-icon.sh"
+    "geticon": "bash make-icon.sh",
+    "fix-electron": "bash fix-electron.sh",
+    "dev": "bash fix-electron.sh && electron ."
   },
   "dependencies": {
     "@julusian/midi": "^3.1.10",
@@ -35,7 +37,13 @@
     ],
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.music",
       "icon": "build/icon.icns",

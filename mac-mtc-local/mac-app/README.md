@@ -80,6 +80,27 @@ Settings are remembered between launches.
 
 ## Troubleshooting
 
+**"Electron.app … contains malware" / it gets moved to Trash / launch dies with
+SIGKILL.** This is *not* real malware — it's Gatekeeper refusing to run the
+**unsigned** Electron binary that `npm install` downloads, common on
+managed/corporate Macs. Clear quarantine and give Electron an ad-hoc signature
+**before** the first launch:
+
+```bash
+cd mac-mtc-local/mac-app
+rm -rf node_modules/electron          # macOS may have already trashed it
+npm install electron@31 --save-dev    # re-download (does not run it)
+npm run fix-electron                   # clears quarantine + ad-hoc signs it
+npm start
+```
+
+Or just `npm run dev`, which runs the fix and launches in one step. Re-run the
+fix after any Electron reinstall/update. If it *still* gets killed, your Mac
+likely has endpoint security (CrowdStrike / SentinelOne / Jamf Protect) that
+removes unsigned apps regardless — build a **signed + notarized** DMG (needs an
+Apple Developer ID) or develop on an unmanaged Mac.
+
+
 **No microphone prompt / empty input list.** The prompt appears when you press
 **Start** (that's the getUserMedia call). If you dismissed it before, or you're
 running in dev via `npm start`:
