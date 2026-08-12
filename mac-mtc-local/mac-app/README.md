@@ -5,10 +5,11 @@ re-transmits it as **MTC** on a MIDI port, **and** serves the countdown
 dashboard to any device on your LAN — all in one app, no separate `server.js`
 and no IAC loopback required.
 
-No Terminal for daily use, and no Homebrew / Xcode tools for the person running
-the app: **ffmpeg is bundled**, the **LTC decoder is pure JavaScript** (no
-`libltc`), and MIDI uses a prebuilt module. You build the `.app` once; after
-that it lives in your Applications folder / dock and opens on double-click.
+No Terminal for daily use, and no Homebrew, ffmpeg, or `libltc` to install: the
+app captures the audio input in-process (Web Audio) and the **LTC decoder is
+pure JavaScript**, so there's nothing to compile or download at runtime. You
+build the `.app` once; after that it lives in your Applications folder / dock
+and opens on double-click.
 
 ```
                                    ┌─→ MIDI out (IAC / virtual) → QLab · DAW · consoles
@@ -54,10 +55,11 @@ That runs the exact same app in a dev window.
 
 ## Using it
 
-1. Launch the app. Grant **microphone/audio** permission when macOS asks
-   (that's how it reads the audio input).
+1. Launch the app and press **Start** the first time — macOS shows the
+   **microphone** prompt (that's how it reads the audio input). Click **Allow**.
+   The device list fills in with real names once access is granted.
 2. Pick your **Audio input** (your USB interface), set **Channels** and the
-   **LTC channel** (0-indexed — which input carries LTC).
+   **LTC channel** (0-indexed — which input carries LTC), then Start again.
 3. Leave **Frame rate** on **Auto** (it reads the rate, incl. drop-frame, from
    the signal) or pin it.
 4. Choose the **MIDI output**. For the dashboard, enable an **IAC Driver** bus
@@ -78,29 +80,36 @@ Settings are remembered between launches.
 
 ## Troubleshooting
 
-**No permission popup, and Start fails (ffmpeg code 234).** This is the
-microphone permission. The app now requests it on Start, so the macOS prompt
-should appear the first time — click **Allow**. If you already dismissed it, or
-you're running in dev via `npm start`:
+**No microphone prompt / empty input list.** The prompt appears when you press
+**Start** (that's the getUserMedia call). If you dismissed it before, or you're
+running in dev via `npm start`:
 
 1. Open **System Settings → Privacy & Security → Microphone**.
 2. Enable the toggle for **LTC to MTC** (packaged app) or **Electron** (dev via
    `npm start`). If it isn't listed, press Start once to make it appear.
-3. Quit and reopen the app.
+3. Quit and reopen, then press Start.
 
-Code 234 is ffmpeg's "invalid argument" and almost always means the audio
-device couldn't be opened — usually the permission above, occasionally the
-wrong **Audio input** (hit ↻ Rescan and pick your USB interface) or a
-**Channels** value higher than the interface actually provides.
+If macOS recorded a silent denial and won't prompt again, reset it once in
+Terminal and relaunch: `tccutil reset Microphone`. Device names in the dropdown
+stay generic until access is granted, then fill in automatically.
 
 **It runs but never shows "Locked".** The LTC signal isn't decoding. Check the
 level meter moves when timecode is playing; if it's low, raise **Input gain**.
 Confirm **LTC channel** points at the input actually carrying LTC (it's
 0-indexed), and that **Channels** matches your interface.
 
+**Multi-channel interfaces.** macOS audio capture usually exposes the first one
+or two channels of a device. If your LTC is on a higher channel that doesn't
+show up, route it to input 1 or 2 on the interface, or use a stereo feed with
+LTC on left or right. (For deep multi-channel routing, the standalone
+`ltc-to-mtc.js` CLI in the folder above uses ffmpeg and can grab any channel.)
+
 ## How it works
 
-- **Audio capture** — bundled `ffmpeg-static` via avfoundation, raw S16LE to stdout.
+- **Audio capture** — in the renderer via `getUserMedia` + Web Audio (all DSP
+  like echo-cancellation/AGC disabled so the LTC waveform is untouched). No
+  ffmpeg, no child process — which is what makes the mic prompt and device list
+  behave normally on macOS.
 - **LTC decode** — `ltc-decoder.js`, a dependency-free biphase-mark decoder
   ported from SuperTimecodeConverter's `LtcInput.h`. Verified end-to-end by
   `npm test` (synthesises LTC audio and decodes it back at 30 / 25 / 29.97 DF).

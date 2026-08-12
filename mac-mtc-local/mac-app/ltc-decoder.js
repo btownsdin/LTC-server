@@ -168,4 +168,9 @@ class LtcDecoder {
     }
 }
 
-module.exports = { LtcDecoder };
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { LtcDecoder };
+}
+if (typeof window !== 'undefined') {
+    window.LtcDecoder = LtcDecoder;
+}
