@@ -11,7 +11,8 @@
     "dist": "electron-builder --mac",
     "geticon": "bash make-icon.sh",
     "fix-electron": "bash fix-electron.sh",
-    "dev": "bash fix-electron.sh && electron ."
+    "dev": "bash fix-electron.sh && electron .",
+    "sign": "bash sign-app.sh"
   },
   "dependencies": {
     "@julusian/midi": "^3.1.10",
@@ -40,8 +41,7 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "universal"
           ]
         }
       ],
@@ -51,7 +51,9 @@
       "gatekeeperAssess": false,
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Reads LTC timecode from your audio input."
-      }
+      },
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "LTC to MTC"

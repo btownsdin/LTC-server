@@ -19,6 +19,19 @@ try { WebSocketServer = require('ws').WebSocketServer; } catch (_) {}
 
 const { MtcSender, resolveFps } = require('./mtc-sender');
 
+// Last-resort guard: convert an otherwise-fatal main-process error into a
+// message in the app window instead of the scary "A JavaScript error occurred"
+// crash dialog. (Real logic errors are still surfaced; the app just survives.)
+process.on('uncaughtException', (err) => {
+    try {
+        const msg = (err && err.code === 'EADDRINUSE')
+            ? 'The dashboard port is already in use — another copy of the app may be running.'
+            : ('Unexpected error: ' + (err && err.message ? err.message : String(err)));
+        if (win && !win.isDestroyed()) win.webContents.send('status', { error: msg });
+        console.error('uncaughtException:', err);
+    } catch (_) {}
+});
+
 // --- MIDI (prebuilt native module; rebuilt for Electron at package time) -----
 let midi = null;
 try { midi = require('@julusian/midi'); }
@@ -64,9 +77,10 @@ function lanIp() {
     }
     return '';
 }
-function startDashboardServer(port) {
+function startDashboardServer(port, attempt) {
     stopDashboardServer();
     dashPort = port || 8085;
+    attempt = attempt || 0;
     const serve = (file, res) => {
         fs.readFile(path.join(__dirname, 'dashboard', file), (err, data) => {
             if (err) { res.writeHead(500); return res.end('Error loading ' + file); }
@@ -80,12 +94,27 @@ function startDashboardServer(port) {
         if (url === '/minimal' || url === '/minimal.html') return serve('minimal.html', res);
         res.writeHead(404); res.end();
     });
-    httpServer.on('error', (e) => pushStatus({ error: `Dashboard port ${dashPort} unavailable (${e.code}).` }));
+
+    // If the port is taken (e.g. another copy of the app is open), don't crash —
+    // try the next few ports, then report clearly if none are free.
+    httpServer.on('error', (e) => {
+        try { httpServer.close(); } catch (_) {}
+        httpServer = null; wss = null;
+        if (e.code === 'EADDRINUSE' && attempt < 10) {
+            pushStatus({ error: `Port ${dashPort} in use — trying ${dashPort + 1}…` });
+            startDashboardServer(dashPort + 1, attempt + 1);
+        } else {
+            pushStatus({ error:
+                `Could not start the dashboard (port ${dashPort}: ${e.code}). ` +
+                `Another copy of the app may be running — quit it, or change the Port in the app.` });
+        }
+    });
+
     if (WebSocketServer) wss = new WebSocketServer({ server: httpServer });
     httpServer.listen(dashPort, '0.0.0.0', () => {
         const ip = lanIp();
         dashUrls = { local: `http://localhost:${dashPort}`, lan: ip ? `http://${ip}:${dashPort}` : '' };
-        pushStatus({ dashUrls });
+        pushStatus({ dashUrls, error: null });
     });
 }
 function stopDashboardServer() {
