@@ -53,6 +53,52 @@ That runs the exact same app in a dev window.
 
 ---
 
+## Clean rebuild recipe (copy/paste)
+
+The full, known-good sequence to build, ad-hoc sign (so it runs without an Apple
+Developer ID *and* keeps microphone access), install, and launch — on any Mac
+with Node. Works on both Apple Silicon and Intel (universal build).
+
+```bash
+git clone https://github.com/btownsdin/LTC-server.git   # or: cd LTC-server && git pull
+cd LTC-server/mac-mtc-local/mac-app
+npm install
+npm run dist
+npm run sign "dist/mac-universal/LTC to MTC.app"
+rm -rf "/Applications/LTC to MTC.app"
+cp -R "dist/mac-universal/LTC to MTC.app" /Applications/
+open "/Applications/LTC to MTC.app"
+```
+
+- Use whatever folder `ls dist/` actually shows (`mac-universal`, `mac-arm64`,
+  or `mac-x64`) in the `sign`/`cp` lines.
+- Sign with `npm run sign` — **never** a plain `codesign --deep --sign -`, which
+  strips the mic entitlement and stops the app from ever prompting for the
+  microphone.
+- Copying the built `.app` to another Mac? Clear quarantine there once:
+  `xattr -dr com.apple.quarantine "/Applications/LTC to MTC.app"`.
+- Running from source in dev instead of building? Use `npm run dev` (it ad-hoc
+  signs Electron first so Gatekeeper doesn't trash it).
+
+## Operational gotchas
+
+- **LTC must be on a low channel.** Capture only sees the first couple of
+  channels macOS exposes for a device. On a multi-channel interface (e.g.
+  Focusrite Scarlett 18i20), route the LTC input to channel 1 in the interface's
+  mixer (Focusrite Control), then set **LTC channel** to 0 in the app. LTC on a
+  high channel (3, 4, …) won't be seen even though other apps can see it.
+- **Run one copy at a time.** The dashboard binds port 8085. A second instance
+  auto-moves to 8086 (and 8087, …) rather than crashing — so if the dashboard
+  looks wrong, check which port that instance actually bound.
+- **First launch asks for the microphone** — approve it. It appears in System
+  Settings → Privacy & Security → Microphone as "LTC to MTC" (packaged) or
+  "Electron" (dev). If it ever stops prompting: `tccutil reset Microphone com.local.ltctomtc`.
+- **Managed/corporate Macs** with endpoint security (CrowdStrike, SentinelOne,
+  Jamf Protect) may block or trash the unsigned app regardless of the steps
+  above — in that case, have IT whitelist it, or run from source with `npm run dev`.
+
+---
+
 ## Using it
 
 1. Launch the app and press **Start** the first time — macOS shows the
