@@ -29,15 +29,14 @@
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             font-variant-numeric: tabular-nums;
             line-height: 1;
-            color: #ef4444;
-            text-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+            color: #6b7280;              /* paused = gray (base state) */
+            text-shadow: none;
             transition: color 0.15s ease, text-shadow 0.15s ease;
         }
-
-        #clock.running {
-            color: #10b981;
-            text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
-        }
+        #clock.state-run { color: #10b981; text-shadow: 0 0 25px rgba(16, 185, 129, 0.3); }
+        #clock.state-y   { color: #eab308; text-shadow: 0 0 25px rgba(234, 179, 8, 0.35); }
+        #clock.state-o   { color: #f97316; text-shadow: 0 0 28px rgba(249, 115, 22, 0.40); }
+        #clock.state-r   { color: #ef4444; text-shadow: 0 0 32px rgba(239, 68, 68, 0.45); }
     </style>
 </head>
 <body>
@@ -116,7 +115,14 @@
             }
 
             const isPlaybackActive = (now - lastMovementTime < LOOSE_TOLERANCE_MS);
-            clockEl.className = isPlaybackActive ? 'running' : '';
+            const remaining = h * 3600 + m * 60 + s;
+            let state;
+            if (!isPlaybackActive)      state = '';          // gray base = paused
+            else if (remaining <= 3)    state = 'state-r';
+            else if (remaining <= 5)    state = 'state-o';
+            else if (remaining <= 10)   state = 'state-y';
+            else                        state = 'state-run';
+            clockEl.className = state;
 
             lastDispH = h;
             lastDispM = m;

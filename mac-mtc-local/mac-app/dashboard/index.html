@@ -70,20 +70,23 @@
             color: #ffffff; /* Stays a clean, subtle white anchor */
         }
         
-        /* ACTIVE STATE COLORING (Applies to title, numbers, and colons) */
-        .running #title-bar, 
-        .running .digits, 
-        .running .separator {
-            color: #10b981; 
-            text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+        /* ---- STATE COLORING (title, digits, colons) ----
+           paused = gray, running = green, then a warning ramp by time left:
+           <=10s yellow, <=5s orange, <=3s red. */
+        .state-paused #title-bar, .state-paused .digits, .state-paused .separator {
+            color: #6b7280; text-shadow: none;
         }
-        
-        /* PAUSED STATE COLORING (Applies to title, numbers, and colons) */
-        .paused #title-bar, 
-        .paused .digits, 
-        .paused .separator {
-            color: #ef4444; 
-            text-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+        .state-run #title-bar, .state-run .digits, .state-run .separator {
+            color: #10b981; text-shadow: 0 0 25px rgba(16, 185, 129, 0.3);
+        }
+        .state-y #title-bar, .state-y .digits, .state-y .separator {
+            color: #eab308; text-shadow: 0 0 25px rgba(234, 179, 8, 0.35);
+        }
+        .state-o #title-bar, .state-o .digits, .state-o .separator {
+            color: #f97316; text-shadow: 0 0 28px rgba(249, 115, 22, 0.40);
+        }
+        .state-r #title-bar, .state-r .digits, .state-r .separator {
+            color: #ef4444; text-shadow: 0 0 32px rgba(239, 68, 68, 0.45);
         }
         
         /* Countdown progress bar */
@@ -122,14 +125,11 @@
             opacity: 0.45;
             color: #ffffff;
         }
-        .running #progress-fill {
-            background: #10b981;
-            box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
-        }
-        .paused #progress-fill {
-            background: #ef4444;
-            box-shadow: 0 0 18px rgba(239, 68, 68, 0.30);
-        }
+        .state-paused #progress-fill { background: #4b5563; box-shadow: none; }
+        .state-run #progress-fill { background: #10b981; box-shadow: 0 0 18px rgba(16, 185, 129, 0.35); }
+        .state-y #progress-fill { background: #eab308; box-shadow: 0 0 18px rgba(234, 179, 8, 0.40); }
+        .state-o #progress-fill { background: #f97316; box-shadow: 0 0 18px rgba(249, 115, 22, 0.45); }
+        .state-r #progress-fill { background: #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.50); }
 
         #status {
             position: absolute;
@@ -141,11 +141,23 @@
             text-transform: uppercase;
             letter-spacing: 0.1em;
         }
+        #fs-link {
+            position: absolute;
+            bottom: 24px;
+            right: 28px;
+            font-size: 1.2vw;
+            color: #4b5563;
+            text-decoration: none;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        #fs-link:hover { color: #9ca3af; }
     </style>
 </head>
 <body>
-    <div id="app-container" class="paused">
-        <div id="title-bar">SANCTUARY TRIA CH C COUNTDOWN</div>
+    <div id="app-container" class="state-paused">
+        <div id="title-bar">COUNTDOWN</div>
         
         <div id="timecode">
             <div class="time-column">
@@ -174,10 +186,37 @@
     </div>
     
     <div id="status">Connecting to Host Server...</div>
+    <a id="fs-link" href="/minimal">Fullscreen ▸</a>
 
     <script>
         const appContainer = document.getElementById('app-container');
         const statusDisplay = document.getElementById('status');
+        const titleEl = document.getElementById('title-bar');
+
+        // ---- Countdown label ----
+        // Change it any of three ways:
+        //   1. Edit DEFAULT_LABEL below.
+        //   2. Add ?label=Your%20Text to the URL (bookmark per display).
+        //   3. Click the title on screen to rename (saved into the URL so a
+        //      refresh or bookmark keeps it).
+        const DEFAULT_LABEL = 'COUNTDOWN';
+        function setLabel(text, persist) {
+            titleEl.textContent = text;
+            document.title = text || 'LAN Timecode Monitor';
+            if (persist) {
+                const p = new URLSearchParams(location.search);
+                if (text) p.set('label', text); else p.delete('label');
+                history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p.toString() : ''));
+            }
+        }
+        setLabel(new URLSearchParams(location.search).get('label') || DEFAULT_LABEL, false);
+        titleEl.style.cursor = 'text';
+        titleEl.title = 'Click to rename';
+        titleEl.addEventListener('click', (e) => {
+            e.stopPropagation();   // don't trigger the body-click progress reset
+            const next = prompt('Countdown label:', titleEl.textContent);
+            if (next !== null) setLabel(next.trim(), true);
+        });
         
         const hoursDisplay = document.getElementById('hours');
         const minutesDisplay = document.getElementById('minutes');
@@ -215,7 +254,7 @@
 
         socket.onclose = () => {
             statusDisplay.textContent = "Error: Lost Host Server Uplink";
-            appContainer.className = 'paused';
+            appContainer.className = 'state-paused';
             clearTimeout(mtcTimeout);
         };
 
@@ -286,14 +325,19 @@
             // Verify active status against the expanded 2-second flywheel filter window
             const isPlaybackActive = (now - lastMovementTime < LOOSE_TOLERANCE_MS);
 
-            // Dynamic color state switching applied to the master app wrapper
-            if (isPlaybackActive) {
-                if (appContainer.className !== 'running') appContainer.className = 'running';
-                statusDisplay.textContent = `Online | ${currentFPS} FPS`;
-            } else {
-                if (appContainer.className !== 'paused') appContainer.className = 'paused';
-                statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
-            }
+            // Dynamic color state: gray when paused, green when running, then a
+            // warning ramp as the remaining time drops (<=10 y, <=5 o, <=3 r).
+            const remaining = h * 3600 + m * 60 + s;
+            let state;
+            if (!isPlaybackActive)      state = 'state-paused';
+            else if (remaining <= 3)    state = 'state-r';
+            else if (remaining <= 5)    state = 'state-o';
+            else if (remaining <= 10)   state = 'state-y';
+            else                        state = 'state-run';
+            if (appContainer.className !== state) appContainer.className = state;
+            statusDisplay.textContent = isPlaybackActive
+                ? `Online | ${currentFPS} FPS`
+                : `Paused | Stopped at ${currentFPS} FPS`;
 
             lastDispH = h;
             lastDispM = m;
@@ -311,7 +355,7 @@
             // Watchdog fallback counting down to physical connection drops
             clearTimeout(mtcTimeout);
             mtcTimeout = setTimeout(() => {
-                appContainer.className = 'paused';
+                appContainer.className = 'state-paused';
                 statusDisplay.textContent = `Paused | Stopped at ${currentFPS} FPS`;
             }, LOOSE_TOLERANCE_MS);
         }
