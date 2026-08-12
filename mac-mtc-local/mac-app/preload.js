@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
     getInit:       ()         => ipcRenderer.invoke('get-init'),
     refreshMidi:   ()         => ipcRenderer.invoke('refresh-midi'),
     engineStart:   (settings) => ipcRenderer.invoke('engine-start', settings),
+    requestMic:    ()         => ipcRenderer.invoke('request-mic'),
     engineStop:    ()         => ipcRenderer.invoke('engine-stop'),
     sendFrame:     (frame)    => ipcRenderer.invoke('frame', frame),
     saveSettings:  (settings) => ipcRenderer.invoke('save-settings', settings),

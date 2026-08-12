@@ -83,14 +83,15 @@ async function startCapture(settings) {
     gain = settings.gain;
 
     decoder = new window.LtcDecoder(48000, (frame) => {
+        const h = frame.hours, m = frame.minutes, s = frame.seconds, f = frame.frames;
         // Local live display
-        $('tc').textContent = `${p2(frame.h)}:${p2(frame.m)}:${p2(frame.s)}:${p2(frame.f)}`;
+        $('tc').textContent = `${p2(h)}:${p2(m)}:${p2(s)}:${p2(f)}`;
         $('tc').classList.add('live');
         $('lockdot').className = 'dot on';
         $('lockstate').textContent = 'Locked';
         lastFrameAt = performance.now();
         // Forward to main for MTC output + dashboard
-        window.api.sendFrame({ h: frame.h, m: frame.m, s: frame.s, f: frame.f, drop: frame.drop, fps: frame.fps });
+        window.api.sendFrame({ h, m, s, f, drop: frame.drop, fps: frame.fps });
     });
     decoder.setGain(gain);
 
@@ -178,8 +179,19 @@ $('toggle').addEventListener('click', async () => {
     }
     showBanner('');
     const settings = currentSettings();
+
+    // Ask macOS for microphone access first (main process → OS prompt). On a
+    // packaged app this is what actually makes the system prompt appear.
     try {
-        await startCapture(settings);           // prompts for mic, starts decode
+        const mic = await window.api.requestMic();
+        if (!mic || !mic.ok) {
+            showBanner('Microphone access is needed. If macOS didn\u2019t ask, enable it in System Settings \u2192 Privacy & Security \u2192 Microphone (look for "LTC to MTC"), then press Start again.');
+            return;
+        }
+    } catch (_) { /* fall through and let getUserMedia try anyway */ }
+
+    try {
+        await startCapture(settings);           // starts decode (also prompts if needed)
     } catch (err) {
         stopCapture();
         if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {

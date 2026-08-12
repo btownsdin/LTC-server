@@ -8,7 +8,7 @@
 // renderer streams decoded timecode frames here over IPC.
 // ============================================================================
 
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -209,6 +209,25 @@ ipcMain.handle('get-init', async () => ({
 }));
 ipcMain.handle('refresh-midi', () => ({ midiOutputs: listMidiOutputs() }));
 ipcMain.handle('engine-start', (_e, settings) => { saveSettings(settings); return engineStart(settings); });
+
+// Trigger the macOS microphone prompt from the MAIN process. On packaged apps a
+// renderer getUserMedia call alone doesn't reliably fire the OS (TCC) prompt —
+// this does, attributed to the app via its NSMicrophoneUsageDescription.
+ipcMain.handle('request-mic', async () => {
+    if (process.platform !== 'darwin' || !systemPreferences.getMediaAccessStatus) return { ok: true };
+    const status = systemPreferences.getMediaAccessStatus('microphone');
+    if (status === 'granted') return { ok: true, status };
+    if (status === 'denied' || status === 'restricted') {
+        try { shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'); } catch (_) {}
+        return { ok: false, status };
+    }
+    try {
+        const granted = await systemPreferences.askForMediaAccess('microphone');
+        return { ok: !!granted, status: granted ? 'granted' : 'denied' };
+    } catch (e) {
+        return { ok: false, status: 'error', error: e.message };
+    }
+});
 ipcMain.handle('engine-stop', () => { engineStop(); return true; });
 ipcMain.handle('frame', (_e, frame) => { onFrame(frame); return true; });
 ipcMain.handle('save-settings', (_e, settings) => { saveSettings(settings); return true; });
