@@ -1,0 +1,28 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "ltc-timecode-monitor",
+	"name": "LTC Timecode Monitor",
+	"shortname": "ltctimecode",
+	"description": "Reads timecode from a btownsdin/LTC-server instance (LAN Timecode Monitor) over WebSocket and exposes it as Companion variables.",
+	"version": "1.0.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/btownsdin/LTC-server.git",
+	"bugs": "https://github.com/btownsdin/LTC-server/issues",
+	"maintainers": [
+		{
+			"name": "Your name",
+			"email": "you@example.com"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "2.1.3",
+		"entrypoint": "../src/main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Custom",
+	"products": ["LTC-server Timecode Monitor"],
+	"keywords": ["timecode", "ltc", "mtc", "smpte", "countdown"]
+}

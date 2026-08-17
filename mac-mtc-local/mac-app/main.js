@@ -127,6 +127,50 @@ function broadcastMtc(bytes) {
     for (const c of wss.clients) if (c.readyState === 1) c.send(payload);
 }
 
+// --- Decoded timecode broadcast (for external tools, e.g. a Companion module) ---
+// The renderer already hands us fully-decoded h/m/s/f (see onFrame below), so
+// unlike the standalone server.js this needs no MTC re-parsing — just forward
+// it as clean JSON alongside the existing raw `{ bytes }` broadcast. "Running"
+// uses the same digit-movement + 2s tolerance the dashboards already use, so
+// a frozen-but-still-arriving timecode reads as "paused" consistently.
+const RUN_TOLERANCE_MS = 2000;
+let lastFrameH = -1, lastFrameM = -1, lastFrameS = -1;
+let lastMovementTime = 0;
+let runWatchdog = null;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function tcString(h, m, s, f) { return `${pad2(h)}:${pad2(m)}:${pad2(s)}:${pad2(f)}`; }
+
+function broadcastDecodedTimecode(h, m, s, f, fpsLabel) {
+    if (!wss) return;
+    const now = Date.now();
+    if (h !== lastFrameH || m !== lastFrameM || s !== lastFrameS || lastFrameH === -1) {
+        lastMovementTime = now;
+    }
+    lastFrameH = h; lastFrameM = m; lastFrameS = s;
+
+    const isRunning = (now - lastMovementTime) < RUN_TOLERANCE_MS;
+    const payload = JSON.stringify({
+        tc: { h, m, s, f },
+        fps: fpsLabel,
+        running: isRunning,
+        timecode: tcString(h, m, s, f),
+    });
+    for (const c of wss.clients) if (c.readyState === 1) c.send(payload);
+
+    clearTimeout(runWatchdog);
+    runWatchdog = setTimeout(() => {
+        if (!wss) return;
+        const pausedPayload = JSON.stringify({
+            tc: { h: lastFrameH, m: lastFrameM, s: lastFrameS, f: 0 },
+            fps: fpsLabel,
+            running: false,
+            timecode: tcString(lastFrameH, lastFrameM, lastFrameS, 0),
+        });
+        for (const c of wss.clients) if (c.readyState === 1) c.send(pausedPayload);
+    }, RUN_TOLERANCE_MS);
+}
+
 // ---------------------------------------------------------------------------
 // MIDI
 // ---------------------------------------------------------------------------
@@ -178,6 +222,8 @@ function engineStop() {
     running = false;
     if (mtc) { mtc.stop(); mtc = null; }
     if (midiOut) { try { midiOut.closePort(); } catch (_) {} midiOut = null; }
+    clearTimeout(runWatchdog);
+    lastFrameH = lastFrameM = lastFrameS = -1;
 }
 
 // A decoded LTC frame from the renderer.
@@ -188,6 +234,7 @@ function onFrame(frame) {
         : resolveFps(parseFloat(fpsMode), frame.drop);
     if (r.rateCode !== rate.rateCode) { rate = r; mtc.setRate(r); }
     mtc.updateTimecode({ h: frame.h, m: frame.m, s: frame.s, f: frame.f });
+    broadcastDecodedTimecode(frame.h, frame.m, frame.s, frame.f, r.label);
 }
 
 function pushStatus(obj) { if (win && !win.isDestroyed()) win.webContents.send('status', obj); }

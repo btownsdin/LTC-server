@@ -36,3 +36,18 @@ README for exact setup steps.
 
 (The `mac-app` bundles the same dashboard pages and serves them the same way —
 it just hosts them from inside the app instead of a standalone `server.js`.)
+
+## Companion integration
+
+[`companion-module-ltc-timecode`](./companion-module-ltc-timecode) is a
+[Bitfocus Companion](https://bitfocus.io/companion) module that connects to
+this server over WebSocket and exposes the timecode as Companion variables
+(`timecode`, `hours`, `minutes`, `seconds`, `frames`, `fps`, `status`), plus
+feedbacks for whether it's running and whether it's connected. See its
+[README](./companion-module-ltc-timecode/README.md) for setup.
+
+It reads a small JSON payload — `{ tc, fps, running, timecode }` — broadcast
+alongside the existing raw MIDI bytes. Currently both `mac-mtc-local/server.js`
+and `mac-mtc-local/mac-app` broadcast this; the two Linux variants still only
+send raw MIDI bytes and would need the same decode step added to work with
+the module.
