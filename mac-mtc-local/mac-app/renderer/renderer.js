@@ -166,6 +166,11 @@ window.api.onStatus((st) => {
     if ('clients' in st) $('clients').textContent = st.clients + (st.clients === 1 ? ' viewer' : ' viewers');
     if (st.dashUrls) $('lanurl').value = st.dashUrls.lan || st.dashUrls.local || 'unavailable';
     if (st.error) showBanner(st.error);
+    if (st.tslState) {
+        $('tallystate').textContent = st.tslState;
+        const dotClass = { program: 'dot program', preview: 'dot on', both: 'dot program' }[st.tslState] || 'dot';
+        $('tallydot').className = dotClass;
+    }
 });
 
 // ---- Controls --------------------------------------------------------------
@@ -237,6 +242,16 @@ $('dashPort').addEventListener('change', () => {
     window.api.setDashPort(parseInt($('dashPort').value || '8085', 10));
     window.api.saveSettings(currentSettings());
 });
+function currentTslConfig() {
+    return {
+        enabled: $('tslEnabled').checked,
+        port: parseInt($('tslPort').value || '9910', 10),
+        address: parseInt($('tslAddress').value || '1', 10),
+    };
+}
+for (const id of ['tslEnabled', 'tslPort', 'tslAddress']) {
+    $(id).addEventListener('change', () => window.api.setTslConfig(currentTslConfig()));
+}
 for (const id of ['audioInput', 'channels', 'ltcChannel', 'fps', 'midiOut', 'gain']) {
     $(id).addEventListener('change', () => window.api.saveSettings(currentSettings()));
 }
@@ -261,6 +276,9 @@ navigator.mediaDevices && navigator.mediaDevices.addEventListener &&
     $('gain').value = s.gain;
     $('gainval').textContent = (+s.gain).toFixed(1) + '×';
     $('dashPort').value = s.dashPort || 8085;
+    $('tslEnabled').checked = !!s.tslEnabled;
+    $('tslPort').value = s.tslPort || 9910;
+    $('tslAddress').value = s.tslAddress != null ? s.tslAddress : 1;
     if (init.dashUrls && (init.dashUrls.lan || init.dashUrls.local)) {
         $('lanurl').value = init.dashUrls.lan || init.dashUrls.local;
     }

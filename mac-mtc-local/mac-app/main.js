@@ -13,6 +13,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
+const dgram = require('dgram');
 
 let WebSocketServer = null;
 try { WebSocketServer = require('ws').WebSocketServer; } catch (_) {}
@@ -46,6 +47,9 @@ const SETTINGS_DEFAULTS = {
     midiOut: 'IAC Driver',
     gain: 1.0,
     dashPort: 8085,
+    tslEnabled: false,     // watch a TSL 5.0 UMD tally source on the LAN
+    tslPort: 9910,         // UDP port the TSL source sends to
+    tslAddress: 1,         // the one tally "INDEX" to watch (see the source's config)
 };
 let settingsPath = null;
 function loadSettings() {
@@ -64,6 +68,9 @@ let running = false;
 
 // Dashboard (LAN) server
 let httpServer = null, wss = null, dashPort = 8085, dashUrls = { local: '', lan: '' };
+
+// TSL 5.0 tally listener
+let tslSocket = null, tslState = 'off';
 
 // ---------------------------------------------------------------------------
 // LAN dashboard
@@ -169,6 +176,80 @@ function broadcastDecodedTimecode(h, m, s, f, fpsLabel) {
         });
         for (const c of wss.clients) if (c.readyState === 1) c.send(pausedPayload);
     }, RUN_TOLERANCE_MS);
+}
+
+// ---------------------------------------------------------------------------
+// TSL 5.0 tally listener
+// ---------------------------------------------------------------------------
+// Watches for TSL 5.0 UMD packets from ONE tally source on the LAN (identified
+// by its "INDEX" / tally address) and broadcasts whether that source is in
+// preview, program, both, or neither to the dashboard. Point the tally
+// source's UMD output at this Mac's LAN IP + the configured port.
+//
+// Packet layout (little-endian), same as the reference bitfocus
+// companion-module-tslproducts-umdlistener:
+//   PBC(2) VER(1) FLAGS(1) SCREEN(2) INDEX(2) CONTROL(2) LENGTH(2) TEXT(LENGTH)
+// CONTROL's low bits pack the "text tally": 0=off, 1=program(red),
+// 2=preview(green), 3=both(amber). Some senders wrap UDP payloads in the same
+// DLE/STX framing used on TCP/serial, so that's unwrapped first, same as the
+// reference module.
+function parseTsl5Packet(data) {
+    if (data[0] === 0xfe && data[1] === 0x02) {
+        data = data.slice(2);
+        const clean = [];
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] === 0xfe && data[i + 1] === 0xfe) { clean.push(0xfe); i++; }
+            else clean.push(data[i]);
+        }
+        data = Buffer.from(clean);
+    }
+    if (data.length < 12) return null;
+
+    const INDEX = data.readUInt16LE(6);
+    const CONTROL = data.readUInt16LE(8);
+    const textTally = (CONTROL >> 2) & 0b11;
+
+    const state = { 0: 'off', 1: 'program', 2: 'preview', 3: 'both' }[textTally] || 'off';
+    return { index: INDEX, state };
+}
+
+function tslBroadcast(state) {
+    tslState = state;
+    pushStatus({ tslState: state });
+    if (!wss) return;
+    const payload = JSON.stringify({ tally: { state } });
+    for (const c of wss.clients) if (c.readyState === 1) c.send(payload);
+}
+
+function startTslListener(port, address) {
+    stopTslListener();
+    if (!port) return;
+
+    try {
+        tslSocket = dgram.createSocket('udp4');
+        tslSocket.on('error', (e) => {
+            pushStatus({ error: `TSL listener error on port ${port}: ${e.message}` });
+            try { tslSocket.close(); } catch (_) {}
+            tslSocket = null;
+        });
+        tslSocket.on('message', (msg) => {
+            let parsed;
+            try { parsed = parseTsl5Packet(msg); } catch (_) { return; }
+            if (!parsed || parsed.index !== address) return; // not our one watched source
+            tslBroadcast(parsed.state);
+        });
+        tslSocket.bind(port, () => {
+            pushStatus({ tslListening: true, tslPort: port, tslAddress: address });
+        });
+    } catch (e) {
+        pushStatus({ error: `Could not start TSL listener: ${e.message}` });
+        tslSocket = null;
+    }
+}
+
+function stopTslListener() {
+    if (tslSocket) { try { tslSocket.close(); } catch (_) {} tslSocket = null; }
+    tslState = 'off';
 }
 
 // ---------------------------------------------------------------------------
@@ -284,6 +365,19 @@ ipcMain.handle('set-dash-port', (_e, port) => {
     if (p >= 1024 && p <= 65535 && p !== dashPort) startDashboardServer(p);
     return true;
 });
+ipcMain.handle('set-tsl-config', (_e, cfg) => {
+    const s = loadSettings();
+    const merged = {
+        ...s,
+        tslEnabled: !!cfg.enabled,
+        tslPort: parseInt(cfg.port, 10) || SETTINGS_DEFAULTS.tslPort,
+        tslAddress: parseInt(cfg.address, 10) || SETTINGS_DEFAULTS.tslAddress,
+    };
+    saveSettings(merged);
+    if (merged.tslEnabled) startTslListener(merged.tslPort, merged.tslAddress);
+    else stopTslListener();
+    return true;
+});
 
 // ---------------------------------------------------------------------------
 // Window / lifecycle
@@ -311,8 +405,9 @@ app.whenReady().then(() => {
 
     const s = loadSettings();
     startDashboardServer(s.dashPort || 8085);
+    if (s.tslEnabled) startTslListener(s.tslPort || SETTINGS_DEFAULTS.tslPort, s.tslAddress || SETTINGS_DEFAULTS.tslAddress);
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { engineStop(); stopDashboardServer(); if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => { engineStop(); stopDashboardServer(); });
+app.on('window-all-closed', () => { engineStop(); stopDashboardServer(); stopTslListener(); if (process.platform !== 'darwin') app.quit(); });
+app.on('before-quit', () => { engineStop(); stopDashboardServer(); stopTslListener(); });

@@ -50,6 +50,7 @@
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:5px; vertical-align: middle; }
   .dot.on { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
   .dot.wait { background: var(--amber); }
+  .dot.program { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
   /* ---- Level meter ---- */
   .meter { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 12px; }
@@ -179,6 +180,25 @@
       <label for="dashPort" style="margin:0; align-self:center;">Port</label>
       <input type="number" id="dashPort" min="1024" max="65535" style="max-width:90px;" />
       <span class="link" id="copyurl">Copy LAN link</span>
+    </div>
+  </div>
+
+  <div class="dash">
+    <div class="dashhead">
+      <span>Tally (TSL 5.0)</span>
+      <span><span id="tallydot" class="dot"></span><span id="tallystate">off</span></span>
+    </div>
+    <div class="dashrow">
+      <label for="tslEnabled" style="margin:0; align-self:center; flex:1;">
+        <input type="checkbox" id="tslEnabled" style="vertical-align:middle; margin-right:6px;" />
+        Watch a TSL 5.0 tally source
+      </label>
+    </div>
+    <div class="dashrow">
+      <label for="tslPort" style="margin:0; align-self:center;">Port</label>
+      <input type="number" id="tslPort" min="1" max="65535" style="max-width:90px;" />
+      <label for="tslAddress" style="margin:0; align-self:center;">Address</label>
+      <input type="number" id="tslAddress" min="0" max="65535" style="max-width:90px;" />
     </div>
   </div>
 

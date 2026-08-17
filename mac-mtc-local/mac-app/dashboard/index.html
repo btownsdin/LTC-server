@@ -256,7 +256,22 @@
             statusDisplay.textContent = "Error: Lost Host Server Uplink";
             appContainer.className = 'state-paused';
             clearTimeout(mtcTimeout);
+            applyTallyState('off');
         };
+
+        // ---- Tally (TSL 5.0) background ----
+        // "off" leaves the normal dark background; program/preview tint the
+        // whole window so it reads at a glance from across a room. If a
+        // source is in both preview and program at once, program (red) wins.
+        const TALLY_COLORS = {
+            off: '#0c0c0e',
+            program: '#c1121f',
+            preview: '#15803d',
+            both: '#c1121f',
+        };
+        function applyTallyState(state) {
+            document.body.style.backgroundColor = TALLY_COLORS[state] || TALLY_COLORS.off;
+        }
 
         socket.onmessage = (event) => {
             const msg = JSON.parse(event.data);
@@ -265,6 +280,9 @@
                 if (actualBytes) {
                     handleMIDIMessage(actualBytes);
                 }
+            }
+            if (msg.tally) {
+                applyTallyState(msg.tally.state);
             }
         };
 

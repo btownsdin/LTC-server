@@ -18,6 +18,7 @@
         #clockText {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             font-weight: 700;
+            font-variant-numeric: tabular-nums;
             fill: #6b7280;                 /* paused = gray (base state) */
             transition: fill 0.15s ease;
         }
@@ -56,13 +57,29 @@
         socket.onclose = () => {
             clockText.setAttribute('class', '');
             clearTimeout(mtcTimeout);
+            applyTallyState('off');
         };
+
+        // ---- Tally (TSL 5.0) background ----
+        // If a source is in both preview and program at once, program (red) wins.
+        const TALLY_COLORS = {
+            off: '#0c0c0e',
+            program: '#c1121f',
+            preview: '#15803d',
+            both: '#c1121f',
+        };
+        function applyTallyState(state) {
+            document.body.style.backgroundColor = TALLY_COLORS[state] || TALLY_COLORS.off;
+        }
 
         socket.onmessage = (event) => {
             const msg = JSON.parse(event.data);
             if (msg.bytes) {
                 const actualBytes = Array.isArray(msg.bytes) ? msg.bytes : msg.bytes.data;
                 if (actualBytes) handleMIDIMessage(actualBytes);
+            }
+            if (msg.tally) {
+                applyTallyState(msg.tally.state);
             }
         };
 

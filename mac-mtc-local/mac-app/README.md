@@ -122,6 +122,26 @@ open "/Applications/LTC to MTC.app"
 
 Settings are remembered between launches.
 
+### Tally (TSL 5.0) background color
+
+The dashboard pages (`index.html` and `/minimal`) can tint their whole
+background based on one TSL 5.0 UMD tally source on your LAN — red for
+program, green for preview, amber for both, back to normal when neither.
+
+1. In the app, check **Watch a TSL 5.0 tally source**.
+2. Set **Port** to whatever UDP port your tally source/vision mixer sends
+   UMD data on.
+3. Set **Address** to the one tally "INDEX" you want to watch (this is
+   whatever address/channel number your tally source assigns to that
+   camera/input — check its UMD configuration).
+4. Point the tally source's UMD/TSL output at this Mac's LAN IP and that
+   port. It only reads TSL 5.0 (UDP); TSL 3.1 isn't supported.
+
+It watches exactly one address — packets for other addresses on the same
+feed are ignored. The small dot next to "Tally (TSL 5.0)" in the app shows
+the live state (gray = off, green = preview, red = program, amber = both) so
+you can confirm it's receiving before checking the dashboard itself.
+
 ---
 
 ## Troubleshooting

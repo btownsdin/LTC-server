@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('api', {
     saveSettings:  (settings) => ipcRenderer.invoke('save-settings', settings),
     openDashboard: ()         => ipcRenderer.invoke('open-dashboard'),
     setDashPort:   (port)     => ipcRenderer.invoke('set-dash-port', port),
+    setTslConfig:  (cfg)      => ipcRenderer.invoke('set-tsl-config', cfg),
     onStatus:      (cb)       => ipcRenderer.on('status', (_e, data) => cb(data)),
 });
