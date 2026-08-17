@@ -122,11 +122,15 @@ open "/Applications/LTC to MTC.app"
 
 Settings are remembered between launches.
 
-### Tally (TSL 5.0) background color
+### Tally (TSL 5.0) border
 
-The dashboard pages (`index.html` and `/minimal`) can tint their whole
-background based on one TSL 5.0 UMD tally source on your LAN — red for
-program, green for preview, amber for both, back to normal when neither.
+The main dashboard page (`index.html`, not `/minimal`) can frame its edges
+with a colored border based on one TSL 5.0 UMD tally source on your LAN —
+muted red for program, muted green for preview, red also wins if a source
+is in both at once. It's a hard cut with no fade, and it's a border rather
+than a full background wash so the countdown text stays exactly as readable
+as always. `/minimal` is left alone on purpose, for displays where you just
+want the clock with nothing else.
 
 1. In the app, check **Watch a TSL 5.0 tally source**.
 2. Set **Port** to whatever UDP port your tally source/vision mixer sends
@@ -139,8 +143,8 @@ program, green for preview, amber for both, back to normal when neither.
 
 It watches exactly one address — packets for other addresses on the same
 feed are ignored. The small dot next to "Tally (TSL 5.0)" in the app shows
-the live state (gray = off, green = preview, red = program, amber = both) so
-you can confirm it's receiving before checking the dashboard itself.
+the live state (gray = off, green = preview, red = program) so you can
+confirm it's receiving before checking the dashboard itself.
 
 ---
 

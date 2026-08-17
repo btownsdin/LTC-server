@@ -153,6 +153,22 @@
             letter-spacing: 0.1em;
         }
         #fs-link:hover { color: #9ca3af; }
+
+        /* ---- Tally (TSL 5.0) border ----
+           A frame around the edges, not a full background wash, so the
+           digit/progress-bar colors stay exactly as readable as always. */
+        #tally-frame {
+            position: fixed;
+            inset: 0;
+            box-sizing: border-box;
+            border-width: 3vmin;
+            border-style: solid;
+            border-color: transparent;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        #tally-frame.program { border-color: #7a2020; }
+        #tally-frame.preview { border-color: #1f5c39; }
     </style>
 </head>
 <body>
@@ -187,11 +203,13 @@
     
     <div id="status">Connecting to Host Server...</div>
     <a id="fs-link" href="/minimal">Fullscreen ▸</a>
+    <div id="tally-frame"></div>
 
     <script>
         const appContainer = document.getElementById('app-container');
         const statusDisplay = document.getElementById('status');
         const titleEl = document.getElementById('title-bar');
+        const tallyFrame = document.getElementById('tally-frame');
 
         // ---- Countdown label ----
         // Change it any of three ways:
@@ -259,18 +277,15 @@
             applyTallyState('off');
         };
 
-        // ---- Tally (TSL 5.0) background ----
-        // "off" leaves the normal dark background; program/preview tint the
-        // whole window so it reads at a glance from across a room. If a
+        // ---- Tally (TSL 5.0) border ----
+        // A colored frame around the edges, not a full background wash — the
+        // digit/progress-bar colors stay exactly as readable as always. If a
         // source is in both preview and program at once, program (red) wins.
-        const TALLY_COLORS = {
-            off: '#0c0c0e',
-            program: '#c1121f',
-            preview: '#15803d',
-            both: '#c1121f',
-        };
         function applyTallyState(state) {
-            document.body.style.backgroundColor = TALLY_COLORS[state] || TALLY_COLORS.off;
+            const cls = state === 'program' || state === 'both' ? 'program'
+                      : state === 'preview' ? 'preview'
+                      : '';
+            tallyFrame.className = cls;
         }
 
         socket.onmessage = (event) => {
