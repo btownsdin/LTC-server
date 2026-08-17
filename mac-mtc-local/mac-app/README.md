@@ -80,6 +80,40 @@ open "/Applications/LTC to MTC.app"
 - Running from source in dev instead of building? Use `npm run dev` (it ad-hoc
   signs Electron first so Gatekeeper doesn't trash it).
 
+### Installing from a downloaded `.dmg`
+
+If the `.dmg` was built on a different Mac and arrived here via a browser
+download, AirDrop, Slack, cloud storage, etc. (rather than coming straight out
+of a `npm run dist` you just ran), macOS quarantines the **`.dmg` itself** in
+addition to the app inside it — so clear that first too:
+
+```bash
+xattr -dr com.apple.quarantine ~/Downloads/"LTC to MTC-1.0.0-universal.dmg"
+open ~/Downloads/"LTC to MTC-1.0.0-universal.dmg"
+```
+
+Drag **LTC to MTC** to **Applications** from the window that opens, then:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/LTC to MTC.app"
+```
+
+Now sign it — **use `npm run sign`, never a plain `codesign --deep --sign -`**.
+The `--deep` flag re-signs every nested binary with a blanket signature that
+drops the entitlements `electron-builder` applied, including the microphone
+one — the app installs and opens fine, it just silently loses the ability to
+ever prompt for mic access again until it's re-signed correctly.
+
+```bash
+cd LTC-server/mac-mtc-local/mac-app   # wherever your clone is
+npm run sign "/Applications/LTC to MTC.app"
+open "/Applications/LTC to MTC.app"
+```
+
+(`npm run sign` reads `build/entitlements.mac.plist` from the project
+checkout, so you need the repo cloned even if you only have the `.dmg` —
+that's the one file it actually needs from it.)
+
 ## Operational gotchas
 
 - **LTC must be on a low channel.** Capture only sees the first couple of
